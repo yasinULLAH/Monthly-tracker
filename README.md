@@ -1,4 +1,3 @@
-```markdown
 # Monthly Tracker
 
 ![Screenshot](shot4.png)
@@ -55,25 +54,18 @@ While Monthly Tracker is primarily designed for habit tracking, its flexibility 
 
 ## Usage
 
-1. **Select Month:**
-   - Use the month selector to choose the month you want to track.
+1. **Select Month:** Use the month selector to choose the month you want to track.
 
 2. **Manage Habits:**
    - **Add Habit:** Click the "Add Habit" button, enter the habit name, and save.
    - **Edit Habit:** Click the "Edit" button next to a habit, modify the name, and save.
    - **Delete Habit:** Click the "Delete" button next to a habit and confirm the deletion.
 
-3. **Track Progress:**
-   - Check the boxes corresponding to the days you completed a habit or attended an event.
-   - View dynamic totals per habit and per day at the end of the table.
+3. **Track Progress:** Check the boxes corresponding to the days you completed a habit or attended an event. View dynamic totals per habit and per day at the end of the table.
 
-4. **Visualize Data:**
-   - Toggle the visibility of bar and pie charts using the checkboxes.
-   - Analyze your progress through visual representations.
+4. **Visualize Data:** Toggle the visibility of bar and pie charts using the checkboxes. Analyze your progress through visual representations.
 
-5. **Export Data:**
-   - Click the "Export to Excel" button to download your tracking data.
-   - Choose to export data on a monthly basis or the entire dataset.
+5. **Export Data:** Click the "Export to Excel" button to download your tracking data. Choose to export data on a monthly basis or the entire dataset.
 
 ## Technologies Used
 
@@ -88,6 +80,7 @@ While Monthly Tracker is primarily designed for habit tracking, its flexibility 
 Contributions are welcome! If you'd like to enhance Monthly Tracker, please follow these steps:
 
 1. **Fork the Repository**
+
 2. **Create a Feature Branch**
 
    ```bash
@@ -115,5 +108,3 @@ This project is licensed under the [MIT License](LICENSE).
 ## Contact
 
 For any inquiries or feedback, please contact [Yasin Ullah](https://github.com/yasinULLAH) at yking.kahn@gmail.com.
-
-```

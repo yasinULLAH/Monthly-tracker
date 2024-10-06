@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Habit Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #controls button {
+            margin-right: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            overflow-x: auto;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            text-align: center;
+            padding: 5px;
+            min-width: 40px;
+        }
+        th {
+            background-color: #f4f4f4;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        tr.total-row {
+            background-color: #f9f9f9;
+            font-weight: bold;
+        }
+        .habit-name {
+            text-align: left;
+            padding-left: 10px;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 10; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.4); 
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 15% auto; 
+            padding: 20px;
+            border: 1px solid #888;
+            width: 300px; 
+            border-radius: 5px;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0 15px 0;
+        }
+        .modal-content button {
+            padding: 8px 12px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Habit Tracker</h1>
+
+    <div id="controls">
+        <button id="addHabitBtn">Add Habit</button>
+        <button id="exportBtn">Export to Excel</button>
+    </div>
+
+    <div>
+        <label for="monthSelect">Select Month:</label>
+        <input type="month" id="monthSelect" />
+    </div>
+
+    <br>
+
+    <div style="overflow-x: auto;">
+        <table id="habitTable">
+            <!-- Table will be generated dynamically -->
+        </table>
+    </div>
+
+    <!-- Modal for Adding/Editing Habit -->
+    <div id="habitModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Add Habit</h3>
+            <input type="text" id="habitInput" placeholder="Habit name" />
+            <button id="saveHabitBtn">Save</button>
+            <button id="cancelHabitBtn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- SheetJS Library for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        // Initialize variables
+        const defaultHabits = ['Exercise', 'Reading', 'Meditation'];
+        let habits = [];
+        let currentMonth = getCurrentMonth();
+        const monthSelect = document.getElementById('monthSelect');
+
+        // Modal Elements
+        const habitModal = document.getElementById('habitModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const habitInput = document.getElementById('habitInput');
+        const saveHabitBtn = document.getElementById('saveHabitBtn');
+        const cancelHabitBtn = document.getElementById('cancelHabitBtn');
+        let editIndex = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            monthSelect.value = currentMonth;
+            loadHabits();
+            renderTable();
+        });
+
+        // Event Listeners
+        document.getElementById('addHabitBtn').addEventListener('click', () => openModal());
+        cancelHabitBtn.addEventListener('click', closeModal);
+        saveHabitBtn.addEventListener('click', saveHabit);
+        monthSelect.addEventListener('change', () => {
+            currentMonth = monthSelect.value;
+            loadHabits();
+            renderTable();
+        });
+        document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+
+        // Functions
+
+        function getCurrentMonth() {
+            const today = new Date();
+            return today.toISOString().slice(0,7); // YYYY-MM
+        }
+
+        function loadHabits() {
+            const storedData = localStorage.getItem('habitTrackerData');
+            if (storedData) {
+                const data = JSON.parse(storedData);
+                if (data[currentMonth]) {
+                    habits = data[currentMonth].habits;
+                } else {
+                    habits = [...defaultHabits];
+                    saveToLocal();
+                }
+            } else {
+                habits = [...defaultHabits];
+                saveToLocal();
+            }
+        }
+
+        function saveToLocal() {
+            let data = {};
+            const storedData = localStorage.getItem('habitTrackerData');
+            if (storedData) {
+                data = JSON.parse(storedData);
+            }
+            data[currentMonth] = { habits: habits, completions: data[currentMonth] ? data[currentMonth].completions : {} };
+            localStorage.setItem('habitTrackerData', JSON.stringify(data));
+        }
+
+        function renderTable() {
+            const table = document.getElementById('habitTable');
+            table.innerHTML = '';
+
+            const date = new Date(currentMonth + '-01');
+            const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+
+            // Create headers
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+
+            const habitHeader = document.createElement('th');
+            habitHeader.textContent = 'Habit';
+            headerRow.appendChild(habitHeader);
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const th = document.createElement('th');
+                th.textContent = d.toString().padStart(2, '0');
+                headerRow.appendChild(th);
+            }
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Create body
+            const tbody = document.createElement('tbody');
+
+            habits.forEach((habit, index) => {
+                const row = document.createElement('tr');
+
+                const nameCell = document.createElement('td');
+                nameCell.classList.add('habit-name');
+                nameCell.textContent = habit;
+
+                // Add edit and delete buttons
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.marginTop = '5px';
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.style.marginRight = '5px';
+                editBtn.addEventListener('click', () => openModal(index));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.addEventListener('click', () => deleteHabit(index));
+
+                actionsDiv.appendChild(editBtn);
+                actionsDiv.appendChild(deleteBtn);
+                nameCell.appendChild(actionsDiv);
+
+                row.appendChild(nameCell);
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const cell = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.dataset.habit = index;
+                    checkbox.dataset.day = d;
+                    checkbox.checked = getCompletion(index, d);
+                    checkbox.addEventListener('change', () => toggleCompletion(index, d, checkbox.checked));
+                    cell.appendChild(checkbox);
+                    row.appendChild(cell);
+                }
+
+                // Total column
+                const totalCell = document.createElement('td');
+                totalCell.classList.add('habit-total');
+                totalCell.textContent = getHabitTotal(index);
+                row.appendChild(totalCell);
+
+                tbody.appendChild(row);
+            });
+
+            // Total row
+            const totalRow = document.createElement('tr');
+            totalRow.classList.add('total-row');
+
+            const totalLabel = document.createElement('td');
+            totalLabel.textContent = 'Total';
+            totalRow.appendChild(totalLabel);
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const totalCell = document.createElement('td');
+                totalCell.classList.add('day-total');
+                totalCell.textContent = getDayTotal(d);
+                totalRow.appendChild(totalCell);
+            }
+
+            // Overall Total
+            const overallTotal = document.createElement('td');
+            overallTotal.textContent = getOverallTotal();
+            totalRow.appendChild(overallTotal);
+
+            tbody.appendChild(totalRow);
+            table.appendChild(tbody);
+        }
+
+        function getCompletion(habitIndex, day) {
+            const data = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (data && data[currentMonth] && data[currentMonth].completions) {
+                return data[currentMonth].completions[habitIndex] && data[currentMonth].completions[habitIndex][day];
+            }
+            return false;
+        }
+
+        function toggleCompletion(habitIndex, day, isChecked) {
+            let data = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (!data) data = {};
+            if (!data[currentMonth]) {
+                data[currentMonth] = { habits: habits, completions: {} };
+            }
+            if (!data[currentMonth].completions[habitIndex]) {
+                data[currentMonth].completions[habitIndex] = {};
+            }
+            data[currentMonth].completions[habitIndex][day] = isChecked;
+            localStorage.setItem('habitTrackerData', JSON.stringify(data));
+            renderTable();
+        }
+
+        function getHabitTotal(habitIndex) {
+            let total = 0;
+            const data = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (data && data[currentMonth] && data[currentMonth].completions && data[currentMonth].completions[habitIndex]) {
+                for (const day in data[currentMonth].completions[habitIndex]) {
+                    if (data[currentMonth].completions[habitIndex][day]) total++;
+                }
+            }
+            return total;
+        }
+
+        function getDayTotal(day) {
+            let total = 0;
+            const data = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (data && data[currentMonth] && data[currentMonth].completions) {
+                habits.forEach((habit, index) => {
+                    if (data[currentMonth].completions[index] && data[currentMonth].completions[index][day]) {
+                        total++;
+                    }
+                });
+            }
+            return total;
+        }
+
+        function getOverallTotal() {
+            let total = 0;
+            const data = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (data && data[currentMonth] && data[currentMonth].completions) {
+                habits.forEach((habit, index) => {
+                    if (data[currentMonth].completions[index]) {
+                        for (const day in data[currentMonth].completions[index]) {
+                            if (data[currentMonth].completions[index][day]) total++;
+                        }
+                    }
+                });
+            }
+            return total;
+        }
+
+        function openModal(index = null) {
+            editIndex = index;
+            habitModal.style.display = 'block';
+            if (index !== null) {
+                modalTitle.textContent = 'Edit Habit';
+                habitInput.value = habits[index];
+            } else {
+                modalTitle.textContent = 'Add Habit';
+                habitInput.value = '';
+            }
+        }
+
+        function closeModal() {
+            habitModal.style.display = 'none';
+            editIndex = null;
+            habitInput.value = '';
+        }
+
+        function saveHabit() {
+            const name = habitInput.value.trim();
+            if (name === '') {
+                alert('Habit name cannot be empty.');
+                return;
+            }
+            if (editIndex !== null) {
+                habits[editIndex] = name;
+            } else {
+                habits.push(name);
+            }
+            saveToLocal();
+            renderTable();
+            closeModal();
+        }
+
+        function deleteHabit(index) {
+            if (confirm(`Are you sure you want to delete the habit "${habits[index]}"?`)) {
+                habits.splice(index, 1);
+                // Also remove completions
+                let data = JSON.parse(localStorage.getItem('habitTrackerData'));
+                if (data && data[currentMonth] && data[currentMonth].completions) {
+                    delete data[currentMonth].completions[index];
+                    // Re-index completions
+                    const newCompletions = {};
+                    habits.forEach((habit, i) => {
+                        newCompletions[i] = data[currentMonth].completions[i >= index ? i + 1 : i] || {};
+                    });
+                    data[currentMonth].completions = newCompletions;
+                    localStorage.setItem('habitTrackerData', JSON.stringify(data));
+                }
+                saveToLocal();
+                renderTable();
+            }
+        }
+
+        function exportToExcel() {
+            const storedData = JSON.parse(localStorage.getItem('habitTrackerData'));
+            if (!storedData) {
+                alert('No data to export.');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+
+            for (const month in storedData) {
+                const data = storedData[month];
+                const daysInMonth = new Date(month + '-01');
+                const numDays = new Date(daysInMonth.getFullYear(), daysInMonth.getMonth() + 1, 0).getDate();
+
+                // Prepare worksheet data
+                const wsData = [];
+
+                // Header
+                const header = ['Habit'];
+                for (let d = 1; d <= numDays; d++) {
+                    header.push(d.toString().padStart(2, '0'));
+                }
+                header.push('Total');
+                wsData.push(header);
+
+                // Habits and completions
+                data.habits.forEach((habit, index) => {
+                    const row = [habit];
+                    for (let d = 1; d <= numDays; d++) {
+                        row.push(data.completions[index] && data.completions[index][d] ? 1 : 0);
+                    }
+                    // Calculate total
+                    const total = data.completions[index] ? Object.values(data.completions[index]).filter(v => v).length : 0;
+                    row.push(total);
+                    wsData.push(row);
+                });
+
+                // Total row
+                const totalRow = ['Total'];
+                for (let d = 1; d <= numDays; d++) {
+                    let dayTotal = 0;
+                    data.habits.forEach((habit, index) => {
+                        if (data.completions[index] && data.completions[index][d]) dayTotal++;
+                    });
+                    totalRow.push(dayTotal);
+                }
+                // Overall total
+                const overallTotal = data.habits.reduce((acc, habit, index) => {
+                    return acc + (data.completions[index] ? Object.values(data.completions[index]).filter(v => v).length : 0);
+                }, 0);
+                totalRow.push(overallTotal);
+                wsData.push(totalRow);
+
+                // Create worksheet
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                XLSX.utils.book_append_sheet(wb, ws, month);
+            }
+
+            // Export to Excel
+            XLSX.writeFile(wb, 'HabitTracker.xlsx');
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            if (event.target == habitModal) {
+                closeModal();
+            }
+        }
+        
+        // Append Chart.js library
+const chartScript = document.createElement('script');
+chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+chartScript.onload = () => {
+    initializeCharts();
+};
+document.body.appendChild(chartScript);
+
+// Create checkboxes to show/hide charts
+const controlsDiv = document.getElementById('controls');
+
+const chartsControlDiv = document.createElement('div');
+chartsControlDiv.style.marginTop = '20px';
+
+const barCheckbox = document.createElement('input');
+barCheckbox.type = 'checkbox';
+barCheckbox.id = 'showBarChart';
+barCheckbox.checked = true;
+
+const barLabel = document.createElement('label');
+barLabel.htmlFor = 'showBarChart';
+barLabel.textContent = ' Show Bar Chart';
+
+const pieCheckbox = document.createElement('input');
+pieCheckbox.type = 'checkbox';
+pieCheckbox.id = 'showPieChart';
+pieCheckbox.checked = true;
+
+const pieLabel = document.createElement('label');
+pieLabel.htmlFor = 'showPieChart';
+pieLabel.textContent = ' Show Pie Chart';
+
+chartsControlDiv.appendChild(barCheckbox);
+chartsControlDiv.appendChild(barLabel);
+chartsControlDiv.appendChild(pieCheckbox);
+chartsControlDiv.appendChild(pieLabel);
+
+controlsDiv.appendChild(chartsControlDiv);
+
+// Create canvas elements for charts
+const chartsContainer = document.createElement('div');
+chartsContainer.id = 'chartsContainer';
+chartsContainer.style.marginTop = '20px';
+
+const barCanvas = document.createElement('canvas');
+barCanvas.id = 'barChart';
+barCanvas.style.display = 'block';
+barCanvas.style.marginBottom = '20px';
+
+const pieCanvas = document.createElement('canvas');
+pieCanvas.id = 'pieChart';
+pieCanvas.style.display = 'block';
+
+chartsContainer.appendChild(barCanvas);
+chartsContainer.appendChild(pieCanvas);
+
+document.body.appendChild(chartsContainer);
+
+// Event listeners for checkboxes
+barCheckbox.addEventListener('change', () => {
+    barCanvas.style.display = barCheckbox.checked ? 'block' : 'none';
+});
+
+pieCheckbox.addEventListener('change', () => {
+    pieCanvas.style.display = pieCheckbox.checked ? 'block' : 'none';
+});
+
+// Initialize Charts
+let barChart, pieChart;
+
+function initializeCharts() {
+    renderCharts();
+}
+
+function renderCharts() {
+    const data = JSON.parse(localStorage.getItem('habitTrackerData'));
+    if (!data) return;
+
+    // Aggregate data for the current month
+    const monthData = data[currentMonth];
+    if (!monthData) return;
+
+    // Bar Chart: Total per Habit
+    const habitLabels = monthData.habits;
+    const habitTotals = monthData.habits.map((_, index) => {
+        return Object.values(monthData.completions[index] || {}).filter(v => v).length;
+    });
+
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    if (barChart) barChart.destroy();
+    barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: habitLabels,
+            datasets: [{
+                label: 'Total Completions',
+                data: habitTotals,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: 'Total Completions per Habit'
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, precision:0 }
+            }
+        }
+    });
+
+    // Pie Chart: Distribution of Completions
+    const totalCompletions = habitTotals.reduce((a, b) => a + b, 0);
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: habitLabels,
+            datasets: [{
+                data: habitTotals,
+                backgroundColor: generateColors(habitLabels.length),
+                borderColor: '#fff',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                title: {
+                    display: true,
+                    text: 'Distribution of Completions per Habit'
+                }
+            }
+        }
+    });
+}
+
+function generateColors(num) {
+    const colors = [];
+    for (let i = 0; i < num; i++) {
+        const r = Math.floor(Math.random() * 200) + 55;
+        const g = Math.floor(Math.random() * 200) + 55;
+        const b = Math.floor(Math.random() * 200) + 55;
+        colors.push(`rgba(${r}, ${g}, ${b}, 0.6)`);
+    }
+    return colors;
+}
+
+// Re-render charts whenever the table is updated
+const originalRenderTable = renderTable;
+renderTable = function() {
+    originalRenderTable();
+    if (window.barChart || window.pieChart) {
+        renderCharts();
+    }
+};
+
+    </script>
+</body>
+</html>
